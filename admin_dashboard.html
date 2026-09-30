@@ -114,6 +114,10 @@
         /* Expired Button Highlight */
         .btn-download-alert { background: #FEF2F2; border-color: #FECACA; color: #991B1B; }
         .btn-download-alert i { color: #DC2626; }
+        
+        /* 🆕 Payment Report Button Highlight */
+        .btn-download-payment { background: #ECFDF5; border-color: #A7F3D0; color: #065F46; }
+        .btn-download-payment i { color: #10B981; }
 
         /* Toggle Switch */
         .toggle-switch { position: relative; width: 42px; height: 22px; }
@@ -142,6 +146,7 @@
         .file-upload-content { text-align: center; pointer-events: none; }
         .file-upload-content i { font-size: 30px; color: #94A3B8; margin-bottom: 5px; display: block; }
         .file-upload-content span { font-size: 12px; color: #64748B; font-weight: 600; }
+        #ad-image-preview { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; display: none; z-index: 5; }
 
         .btn-publish { background: #166534; color: var(--white); border: none; width: 100%; padding: 16px; border-radius: 12px; font-size: 15px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 20px; box-shadow: 0 4px 15px rgba(22, 101, 52, 0.2); transition: 0.2s; }
         .btn-publish:active { transform: scale(0.97); }
@@ -159,7 +164,7 @@
         .team-member-info p { font-size: 11px; color: var(--text-muted); }
         .btn-delete-member { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 16px; }
 
-        /* 🆕 Hero Slider Images Grid styling */
+        /* Hero Slider Images Grid styling */
         .slider-images-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -236,7 +241,7 @@
         </div>
     </div>
 
-    <!-- 🆕 २.१ होम पेज स्लायडर सेटिंग्ज (Hero Slider Manager) -->
+    <!-- २.१ होम पेज स्लायडर सेटिंग्ज (Hero Slider Manager) -->
     <div class="section-header">
         <span style="color: #2563EB;"><i class="fa-solid fa-images"></i> होमपेज स्लायडर सेटिंग्ज</span>
     </div>
@@ -290,10 +295,16 @@
             
             <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 15px;">वरील तारखांमधील संपूर्ण डेटा CSV (Excel) फॉरमॅटमध्ये डाऊनलोड करा. (तारखा न निवडल्यास सर्व डेटा येईल)</p>
             
-            <button class="btn-download" onclick="downloadReport('revenue')">
-                <span><i class="fa-solid fa-indian-rupee-sign" style="color:#10B981; margin-right:8px;"></i> उत्पन्न आणि पेमेंट रिपोर्ट</span>
+            <!-- 🆕 NEW PAYMENT REPORT BUTTON -->
+            <button class="btn-download btn-download-payment" onclick="downloadReport('all_payments')">
+                <span><i class="fa-solid fa-credit-card" style="margin-right:8px;"></i> सर्व पेमेंट्स (Razorpay) रिपोर्ट</span>
                 <i class="fa-solid fa-download"></i>
             </button>
+
+            <!-- <button class="btn-download" onclick="downloadReport('revenue')">
+                <span><i class="fa-solid fa-indian-rupee-sign" style="color:#10B981; margin-right:8px;"></i> उत्पन्न आणि पेमेंट रिपोर्ट</span>
+                <i class="fa-solid fa-download"></i>
+            </button> -->
             <button class="btn-download" onclick="downloadReport('users')">
                 <span><i class="fa-solid fa-users" style="color:#3B82F6; margin-right:8px;"></i> युझर्स लिस्ट रिपोर्ट</span>
                 <i class="fa-solid fa-download"></i>
@@ -407,7 +418,7 @@
         <div style="text-align: center; color: #94A3B8; padding: 20px;">कोणत्याही नवीन प्रॉपर्टीज पेंडिंग नाहीत.</div>
     </div>
 
-    <!-- ८. जाहिरात व्यवस्थापन (UPDATED: Mobile & Desktop Image Uploads) -->
+    <!-- ८. जाहिरात व्यवस्थापन (Mobile & Desktop Image Uploads) -->
     <div class="section-header">
         <span style="color: #D97706;"><i class="fa-solid fa-rectangle-ad"></i> जाहिरात व्यवस्थापन</span>
     </div>
@@ -544,7 +555,7 @@
     <!-- JavaScript For Admin Logic -->
     <script>
         let supportTeamMembers = [];
-        let heroSliderImagesArr = []; // 🆕 For Slider
+        let heroSliderImagesArr = []; 
 
         window.onload = function() {
             if(typeof applySavedLanguage === 'function') { applySavedLanguage(); }
@@ -560,10 +571,10 @@
             loadLiveProperties(); 
             loadAdSettings();
             loadTeamDataCMS(); 
-            loadHeroSliderConfig(); // 🆕 Load existing slider configs
+            loadHeroSliderConfig(); 
         };
 
-        // --- 🆕 Slider Config Logic ---
+        // --- Slider Config Logic ---
         function loadHeroSliderConfig() {
             if(typeof db !== 'undefined') {
                 db.collection("admin_settings").doc("hero_slider").get().then((doc) => {
@@ -604,7 +615,7 @@
             if(confirm("ही इमेज स्लायडरमधून डिलीट करायची का?")) {
                 heroSliderImagesArr.splice(index, 1);
                 renderCurrentSliderImages();
-                saveSliderToFirebase(); // Auto save when deleted
+                saveSliderToFirebase(); 
             }
         }
 
@@ -633,10 +644,8 @@
                     newUrls.push(url);
                 }
 
-                // Add to existing array
                 heroSliderImagesArr = heroSliderImagesArr.concat(newUrls);
                 
-                // Keep max 10 images to avoid overload
                 if(heroSliderImagesArr.length > 10) {
                     heroSliderImagesArr = heroSliderImagesArr.slice(heroSliderImagesArr.length - 10);
                 }
@@ -646,7 +655,7 @@
                 
                 statusText.innerText = "यशस्वीरित्या अपलोड झाले!";
                 statusText.style.color = "#10B981";
-                document.getElementById('hero-slider-files').value = ""; // clear input
+                document.getElementById('hero-slider-files').value = ""; 
                 
                 setTimeout(() => {
                     statusText.innerText = "इथे क्लिक करून फोटो निवडा";
@@ -682,7 +691,7 @@
             }
         }
 
-        // --- १. Load Dashboard Stats ---
+        // --- Load Dashboard Stats ---
         function loadAdminDashboardStats() {
             if(typeof db !== 'undefined') {
                 db.collection("users").get().then(snap => {
@@ -710,7 +719,7 @@
             }
         }
 
-        // --- २. Report Generation & Download Logic With Custom Date Picker ---
+        // --- 🆕 Report Generation & Download Logic (ALL PAYMENTS) ---
         function getSelectedDateRange() {
             let startVal = document.getElementById('report-start-date').value;
             let endVal = document.getElementById('report-end-date').value;
@@ -733,10 +742,37 @@
             
             let dateRange = getSelectedDateRange();
             let dateTitle = dateRange ? dateRange.titleStr : "All_Time";
-            let csvContent = "data:text/csv;charset=utf-8,";
+            let csvContent = "\uFEFF"; // BOM for UTF-8 Excel support
             
             try {
-                if(reportType === 'revenue') {
+                // 🆕 NEW: ALL PAYMENTS REPORT LOGIC
+                if(reportType === 'all_payments') {
+                    csvContent += "Payment ID,User ID,User Mobile,Amount (Rs),Plan Type,Property ID,Status,Payment Date\r\n";
+                    let query = db.collection("payments");
+                    if(dateRange) { query = query.where("createdAt", ">=", dateRange.start).where("createdAt", "<=", dateRange.end); }
+                    
+                    let snap = await query.get();
+                    
+                    // We need to fetch User Details (Name/Mobile) for the UserID
+                    for (let doc of snap.docs) {
+                        let d = doc.data();
+                        let date = d.createdAt ? new Date(d.createdAt).toLocaleDateString() : 'N/A';
+                        let userMobile = "Not Found";
+                        
+                        // Try to get user mobile directly if saved, otherwise fetch from users collection
+                        if(d.userId && d.userId.includes("user_")) {
+                            userMobile = d.userId.replace("user_", "");
+                        } else if(d.userId) {
+                            try {
+                                let userDoc = await db.collection("users").doc(d.userId).get();
+                                if(userDoc.exists) userMobile = userDoc.data().mobile || "N/A";
+                            } catch(e) {}
+                        }
+
+                        csvContent += `"${d.paymentId || 'N/A'}","${d.userId || ''}","${userMobile}","${d.amount || 0}","${d.planType || 'Unknown'}","${d.propertyId || 'N/A'}","${d.status || ''}","${date}"\r\n`;
+                    }
+                } 
+                else if(reportType === 'revenue') {
                     csvContent += "Payment ID,User ID,Amount (Rs),Plan Type,Status,Date\r\n";
                     let query = db.collection("payments");
                     if(dateRange) { query = query.where("createdAt", ">=", dateRange.start).where("createdAt", "<=", dateRange.end); }
@@ -831,7 +867,7 @@
             }
         }
 
-        // --- ३. Load and Save Master Settings ---
+        // --- Load and Save Master Settings ---
         function loadSettingsFromFirebase() {
             if(typeof db !== 'undefined') {
                 db.collection("admin_settings").doc("master_config").get().then((doc) => {
@@ -906,7 +942,7 @@
             }
         }
 
-        // --- ४. Load Pending Properties ---
+        // --- Load Pending Properties ---
         function loadPendingProperties() {
             let container = document.getElementById('admin_pending_properties_list');
             if(typeof db !== 'undefined') {
@@ -937,7 +973,7 @@
             }
         }
 
-        // --- ४.१ Load Live Properties (For Admin Deletion Feature) ---
+        // --- Load Live Properties (For Admin Deletion Feature) ---
         function loadLiveProperties() {
             let container = document.getElementById('admin_live_properties_list');
             if(typeof db !== 'undefined') {
@@ -1001,7 +1037,7 @@
             }
         }
 
-        // --- ५. Flash Ads (UPDATED Logic for Mobile and Desktop separate images) ---
+        // --- Flash Ads (Mobile and Desktop separate images) ---
         let selectedAdFileMobile = null;
         let selectedAdFileDesktop = null;
 
@@ -1034,7 +1070,6 @@
                         document.getElementById('flash-ad-text').value = adData.text || '';
                         document.getElementById('flash-ad-link').value = adData.link || '';
                         
-                        // Load Mobile Image
                         if(adData.imageUrlMobile) {
                             document.getElementById('flash-ad-image-url-mobile').value = adData.imageUrlMobile;
                             const previewMobile = document.getElementById('ad-image-preview-mobile');
@@ -1042,7 +1077,6 @@
                             previewMobile.style.display = 'block';
                         }
                         
-                        // Load Desktop Image (Fallback to old imageUrl if mobile/desktop split wasn't used before)
                         let desktopUrl = adData.imageUrlDesktop || adData.imageUrl;
                         if(desktopUrl) {
                             document.getElementById('flash-ad-image-url-desktop').value = desktopUrl;
@@ -1127,7 +1161,7 @@
             }
         }
 
-        // --- ६. Team CMS ---
+        // --- Team CMS ---
         function loadTeamDataCMS() {
             if(typeof db !== 'undefined') {
                 db.collection("settings").doc("founder").get().then((doc) => {
