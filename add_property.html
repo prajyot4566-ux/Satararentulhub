@@ -12,6 +12,9 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
     
+    <!-- 🆕 Razorpay Checkout Script Added -->
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
     <!-- Firebase Configuration File -->
     <script src="firebase-config.js"></script>
     
@@ -379,6 +382,8 @@
         // --- Fetch Admin Pricing for Plans ---
         let plan1Days = 15;
         let plan2Days = 30;
+        let plan1Price = 299;
+        let plan2Price = 399;
 
         function loadAdminPricing() {
             if(typeof db !== 'undefined') {
@@ -387,10 +392,13 @@
                         let plansData = doc.data().plans;
                         plan1Days = plansData.plan1_validity || 15;
                         plan2Days = plansData.plan2_validity || 30;
+                        plan1Price = plansData.plan1_fee || 299;
+                        plan2Price = plansData.plan2_fee || 399;
+                        
                         document.getElementById('display-plan1-title').innerText = `प्रीमियम ॲड (${plan1Days} दिवस)`;
-                        document.getElementById('display-plan1-fee').innerText = "₹ " + (plansData.plan1_fee || 299);
+                        document.getElementById('display-plan1-fee').innerText = "₹ " + plan1Price;
                         document.getElementById('display-plan2-title').innerText = `प्रीमियम ॲड (${plan2Days} दिवस)`;
-                        document.getElementById('display-plan2-fee').innerText = "₹ " + (plansData.plan2_fee || 399);
+                        document.getElementById('display-plan2-fee').innerText = "₹ " + plan2Price;
                     }
                 }).catch(e => console.log("Error loading plans: ", e));
             }
@@ -424,7 +432,6 @@
             populateTypesAndTargets(category);
             populateAmenities(category);
             
-            // Reapply language immediately so dynamic drop-downs get translated
             if(typeof applySavedLanguage === 'function') { applySavedLanguage(); }
         }
 
@@ -524,7 +531,6 @@
             else { otherAreaBox.style.display = 'none'; }
         }
 
-        // --- 🛠️ BUG FIXED: Keys in areasData map directly to standard value (e.g. 'satara', 'karad') ---
         const areasData = {
             "satara": ["शाहूपुरी", "सदरबझार", "गोडोली", "करंजे", "शनिवार पेठ", "विसावा पार्क", "संगम नगर", "मोळाचा ओढा", "अजिंक्य कॉलनी", "इतर"],
             "karad": ["विद्यानगर", "मलकापूर", "मंगळवार पेठ", "आगाशिवनगर", "वनवासमाची", "कोयना वसाहत", "ओगलेवाडी", "इतर"],
@@ -609,7 +615,7 @@
             const furnishStatus = document.getElementById('prop-furnish').value;
             if(!furnishStatus) { alert("कृपया फर्निचरची स्थिती (Furnishing Status) निवडा!"); return; }
 
-            const taluka = document.getElementById('prop-taluka').value; // Now saves 'satara' instead of 'सातारा'
+            const taluka = document.getElementById('prop-taluka').value; 
             const areaRaw = document.getElementById('prop-area').value;
             let finalArea = areaRaw;
             
@@ -631,6 +637,61 @@
                 return;
             }
 
+            // 🆕 Razorpay Payment Flow Check
+            if(currentPlanType === 'premium1' || currentPlanType === 'premium2') {
+                let amountToPay = currentPlanType === 'premium1' ? plan1Price : plan2Price;
+                triggerRazorpayForOwner(amountToPay, title, finalPropType, finalTarget, furnishStatus, rent, deposit, taluka, finalArea, desc);
+            } else {
+                // Free Basic Plan Flow
+                processPropertyUpload(title, finalPropType, finalTarget, furnishStatus, rent, deposit, taluka, finalArea, desc, "dummy_basic_payment");
+            }
+        }
+
+        // 🆕 Razorpay Logic for Owners (Strict Force UPI)
+        function triggerRazorpayForOwner(amount, title, type, targetTenant, furnishStatus, rent, deposit, taluka, area, desc) {
+            var options = {
+                "key": "rzp_live_TIkGEzUM5ygyd6", // Live Key
+                "amount": amount * 100, // Amount in paise
+                "currency": "INR",
+                "name": "Satara Rental Hub",
+                "description": "Premium Top Ad Subscription",
+                "image": "Logo.png", 
+                "handler": function (response){
+                    // Payment Successful Callback -> Proceed to Upload Images
+                    processPropertyUpload(title, type, targetTenant, furnishStatus, rent, deposit, taluka, area, desc, response.razorpay_payment_id);
+                },
+                "prefill": {
+                    "name": localStorage.getItem("currentUserName") || "Property Owner",
+                    "contact": localStorage.getItem("currentUserId") ? localStorage.getItem("currentUserId").replace("user_", "") : "9876543210"
+                },
+                "config": {
+                    "display": {
+                        "blocks": {
+                            "upi": {
+                                "name": "Pay with UPI (GPay, PhonePe)",
+                                "instruments": [{ "method": "upi" }]
+                            },
+                            "other": {
+                                "name": "Other Payment Modes",
+                                "instruments": [{ "method": "card" }, { "method": "netbanking" }, { "method": "wallet" }]
+                            }
+                        },
+                        "sequence": ["block.upi", "block.other"],
+                        "preferences": { "show_default_blocks": false }
+                    }
+                },
+                "theme": { "color": "#FF671F" }
+            };
+            
+            var rzp1 = new Razorpay(options);
+            rzp1.on('payment.failed', function (response){
+                alert("पेमेंट फेल झाले: " + response.error.description + "\nतुमची प्रॉपर्टी सेव्ह केली गेली नाही.");
+            });
+            rzp1.open();
+        }
+
+        // Image Upload and DB Save Process (Runs after payment success or for free plans)
+        async function processPropertyUpload(title, type, targetTenant, furnishStatus, rent, deposit, taluka, area, desc, paymentId) {
             const submitBtn = document.getElementById('submit-btn');
             submitBtn.disabled = true;
             submitBtn.innerHTML = "फोटोज् अपलोड होत आहेत... <i class='fa-solid fa-spinner fa-spin'></i>";
@@ -661,9 +722,9 @@
                         
                         let initialStatus = isManualApprovalOn ? "pending" : "live";
                         
-                        saveToDatabase(title, finalPropType, finalTarget, furnishStatus, rent, deposit, taluka, finalArea, desc, uploadedPhotoUrls, initialStatus, submitBtn);
+                        saveToDatabase(title, type, targetTenant, furnishStatus, rent, deposit, taluka, area, desc, uploadedPhotoUrls, initialStatus, submitBtn, paymentId);
                     }).catch(() => {
-                        saveToDatabase(title, finalPropType, finalTarget, furnishStatus, rent, deposit, taluka, finalArea, desc, uploadedPhotoUrls, "pending", submitBtn);
+                        saveToDatabase(title, type, targetTenant, furnishStatus, rent, deposit, taluka, area, desc, uploadedPhotoUrls, "pending", submitBtn, paymentId);
                     });
 
                 } catch (error) {
@@ -679,7 +740,7 @@
         }
 
         // ६. Firestore Database मध्ये डेटा टाकण्याचे फंक्शन
-        function saveToDatabase(title, type, targetTenant, furnishStatus, rent, deposit, taluka, area, desc, photoUrlsArray, initialStatus, submitBtn) {
+        function saveToDatabase(title, type, targetTenant, furnishStatus, rent, deposit, taluka, area, desc, photoUrlsArray, initialStatus, submitBtn, paymentId) {
             
             let ownerId = localStorage.getItem("currentUserId") || "unknown_owner";
             let ownerName = localStorage.getItem("currentUserName") || "Owner";
@@ -724,7 +785,7 @@
                 furnishingStatus: furnishStatus, 
                 rent: Number(rent),
                 deposit: deposit ? Number(deposit) : 0,
-                taluka: taluka, // 🛠️ Saved in standard format (e.g., 'satara')
+                taluka: taluka, 
                 area: area,
                 description: desc,
                 photoUrls: photoUrlsArray, 
@@ -739,9 +800,22 @@
 
             if(typeof db !== 'undefined') {
                 db.collection("properties").add(propertyData).then(function(docRef) {
+                    
+                    // Log Premium Payment to Payments Collection
                     if(currentPlanType === 'premium1' || currentPlanType === 'premium2') {
+                        db.collection("payments").add({
+                            paymentId: paymentId,
+                            userId: ownerId,
+                            propertyId: docRef.id,
+                            amount: currentPlanType === 'premium1' ? plan1Price : plan2Price,
+                            planType: "Premium Listing",
+                            status: "Success",
+                            createdAt: new Date().toISOString()
+                        }).catch(e => console.log("Owner Payment record save error", e));
+
+                        // Add to Premium Banners
                         db.collection("admin_settings").doc("premium_banners").set({
-                            [docRef.id]: { title: title, imageUrl: photoUrlsArray[0], link: "property.html?id="+docRef.id, active: true }
+                            [docRef.id]: { title: title, imageUrl: photoUrlsArray[0], link: "details.html?id="+docRef.id, active: true }
                         }, { merge: true });
                     }
 
