@@ -11,6 +11,9 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     
+    <!-- Razorpay Checkout Script Added -->
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
     <!-- Firebase Configuration File -->
     <script src="firebase-config.js"></script>
     
@@ -228,7 +231,7 @@
         <div class="section-title"><i class="fa-solid fa-align-left" style="color:#3B82F6;"></i> <span data-lang="more_info">अधिक माहिती</span></div>
         <div class="description" id="prop-desc-display">...</div>
 
-        <!-- 🔒 मालकाचा नंबर (Monetization Core) -->
+        <!-- 🔒 लॉक केलेला संपर्क बॉक्स (Payment Gateway Trigger) -->
         <div class="contact-lock-box" id="contactBox">
             <div class="owner-name"><i class="fa-solid fa-user-tie"></i> <span id="owner-name-display">...</span> <span data-lang="owner_tag">(घरमालक)</span></div>
             
@@ -254,7 +257,7 @@
         </button>
     </div>
 
-    <!-- JavaScript (Firebase Read & Dynamic Payment Logic) -->
+    <!-- JavaScript (Firebase Read & Dynamic Razorpay Payment Logic) -->
     <script>
         let currentUnlockFee = 20;
         let propertyData = null; 
@@ -318,17 +321,15 @@
                         propertyData = doc.data();
                         propertyData.id = doc.id;
 
-                        // 🆕 ऑटोमॅटिक प्रीमियम एक्सपायरी चेक (Auto-Expire Logic)
+                        // ऑटोमॅटिक प्रीमियम एक्सपायरी चेक (Auto-Expire Logic)
                         if (propertyData.planType && propertyData.planType !== 'basic' && propertyData.expiryDate && propertyData.expiryDate !== 'Lifetime') {
                             let now = new Date();
                             let expiryTime = new Date(propertyData.expiryDate);
                             if (now > expiryTime) {
-                                // जर वेळ संपली असेल, तर प्लॅन 'basic' मानला जावा (टॅग दिसणार नाही)
                                 propertyData.planType = 'basic';
                             }
                         }
 
-                        // Check if property is pending and user is not owner
                         if(propertyData.status === "pending" && propertyData.ownerId !== currentUserId) {
                             alert("ही प्रॉपर्टी सध्या उपलब्ध नाही (ॲडमिनच्या मंजुरीची वाट पाहत आहे).");
                             window.location.href = "listing.html";
@@ -337,7 +338,7 @@
 
                         populateUI(propertyData);
                         
-                        // 🆕 Property Views Update Logic (This guarantees views are recorded exactly when page loads completely)
+                        // Property Views Update Logic
                         if(propertyData.ownerId !== currentUserId) {
                             db.collection("properties").doc(propId).update({
                                 views: firebase.firestore.FieldValue.increment(1)
@@ -361,7 +362,6 @@
         function populateUI(data) {
             document.getElementById('loadingScreen').style.display = 'none';
 
-            // Check if saved
             let savedProps = JSON.parse(localStorage.getItem('userWishlist')) || [];
             if(savedProps.includes(data.id)) {
                 let favBtn = document.getElementById('favBtn');
@@ -369,25 +369,20 @@
                 favBtn.style.color = '#E74C3C';
             }
 
-            // Pending Alert
             if(data.status === "pending" && data.ownerId === currentUserId) {
                 document.getElementById('pendingAlert').style.display = 'block';
             }
 
-            // Top Badge (Category + Type)
             let catText = data.propertyCategory === 'commercial' ? 'व्यावसायिक' : 'रहिवासी';
             document.getElementById('prop-type-display').innerText = `${catText} • ${data.type || "मालमत्ता"}`;
 
-            // Title, Rent, Deposit
             document.getElementById('prop-title-display').innerText = data.title || "-";
             document.getElementById('prop-rent-display').innerText = data.rent || "0";
             document.getElementById('prop-deposit-display').innerText = data.deposit || "0";
             
-            // Location
             let locationText = (data.area || "") + ", " + (data.taluka || "");
             document.getElementById('prop-location-display').innerText = locationText;
 
-            // Highlights
             document.getElementById('highlight-type').innerText = data.type || "-";
             document.getElementById('highlight-tenant').innerText = data.targetTenant || "सर्वांसाठी";
             document.getElementById('highlight-taluka').innerText = data.taluka || "-";
@@ -401,16 +396,11 @@
             else furnishText = data.furnishingStatus || "-";
             document.getElementById('highlight-furnish').innerText = furnishText;
 
-            // Description
             document.getElementById('prop-desc-display').innerText = data.description || "माहिती उपलब्ध नाही.";
-
-            // Owner Name
             document.getElementById('owner-name-display').innerText = data.ownerName || "घरमालक";
 
-            // Premium Badge Display (Now dependent on expiry check)
             let isPremium = (data.planType === 'premium1' || data.planType === 'premium2');
 
-            // Gallery Images
             let galleryContainer = document.getElementById('property-gallery');
             if(data.photoUrls && data.photoUrls.length > 0) {
                 galleryContainer.innerHTML = `<div id="premiumBadge" class="badge-premium" style="display:${isPremium ? 'block' : 'none'};"><i class="fa-solid fa-crown"></i> Premium</div>`;
@@ -419,7 +409,6 @@
                 });
             }
 
-            // Amenities
             let amenitiesContainer = document.getElementById('prop-amenities-display');
             amenitiesContainer.innerHTML = '';
             let hasAnyAmenity = false;
@@ -442,7 +431,6 @@
                 amenitiesContainer.innerHTML = `<div style="font-size:13px; color:#94A3B8;">विशेष सुविधा नोंदवलेल्या नाहीत.</div>`;
             }
 
-            // Number display logic
             if(data.ownerId === currentUserId) {
                 unlockNumberUI();
                 return;
@@ -454,35 +442,103 @@
             }
         }
 
-        // ४. पेमेंट आणि अनलॉक लॉजिक (Leads Update Logic here)
+        // 🆕 ४. Razorpay Live Payment Gateway Integration (With Strict Force UPI Method)
         function processPayment() {
             if(!propertyData) return;
 
-            let currentLang = localStorage.getItem('appLang') || 'mr';
-            let confirmMsg = currentLang === 'en' 
-                ? `Pay ₹${currentUnlockFee} to view owner's number? (Demo Payment)` 
-                : `मालकाचा नंबर पाहण्यासाठी ₹${currentUnlockFee} पेमेंट करायचे आहे का? (सध्या डेमो पेमेंट सुरू आहे)`;
-
-            let confirmPayment = confirm(confirmMsg);
+            // Razorpay options configuration with your Live Key
+            var options = {
+                "key": "rzp_live_TIkGEzUM5ygyd6", // Your Live API Key
+                "amount": currentUnlockFee * 100, // Amount in paise
+                "currency": "INR",
+                "name": "Satara Rental Hub",
+                "description": "Unlock Owner Contact Number",
+                "image": "Logo.png", 
+                "handler": function (response){
+                    // Payment Successful Callback
+                    handleSuccessfulPayment(response.razorpay_payment_id);
+                },
+                "prefill": {
+                    "name": localStorage.getItem("currentUserName") || "Valued Customer",
+                    "email": localStorage.getItem("currentUserEmail") || "user@satararentalhub.com",
+                    "contact": localStorage.getItem("currentUserMobile") || "9876543210"
+                },
+                // 🆕 Force display UPI options primarily
+                "config": {
+                    "display": {
+                        "blocks": {
+                            "upi": {
+                                "name": "Pay with UPI",
+                                "instruments": [
+                                    {
+                                        "method": "upi"
+                                    }
+                                ]
+                            },
+                            "other": {
+                                "name": "Other Payment Modes",
+                                "instruments": [
+                                    {
+                                        "method": "card"
+                                    },
+                                    {
+                                        "method": "netbanking"
+                                    },
+                                    {
+                                        "method": "wallet"
+                                    }
+                                ]
+                            }
+                        },
+                        "sequence": ["block.upi", "block.other"],
+                        "preferences": {
+                            "show_default_blocks": false
+                        }
+                    }
+                },
+                "theme": {
+                    "color": "#FF671F" 
+                }
+            };
             
-            if (confirmPayment) {
-                unlockNumberUI();
+            var rzp1 = new Razorpay(options);
+            
+            rzp1.on('payment.failed', function (response){
+                alert("पेमेंट फेल झाले: " + response.error.description);
+            });
+            
+            rzp1.open();
+        }
 
-                let unlockedProps = JSON.parse(localStorage.getItem('unlockedProperties')) || [];
-                if(!unlockedProps.includes(propertyData.id)) {
-                    unlockedProps.push(propertyData.id);
-                    localStorage.setItem('unlockedProperties', JSON.stringify(unlockedProps));
-                }
-                
-                // 🆕 Leads Update Logic (This guarantees lead count increases securely when payment is made)
-                if(typeof db !== 'undefined') {
-                    db.collection("properties").doc(propertyData.id).update({
-                        leads: firebase.firestore.FieldValue.increment(1)
-                    }).catch(e => console.log(e));
-                }
+        // ५. पेमेंट यशस्वी झाल्यानंतरचे लॉजिक (Leads & Database updates)
+        function handleSuccessfulPayment(paymentId) {
+            unlockNumberUI();
 
-                alert("पेमेंट यशस्वी! नंबर अनलॉक झाला आहे.");
+            let unlockedProps = JSON.parse(localStorage.getItem('unlockedProperties')) || [];
+            if(!unlockedProps.includes(propertyData.id)) {
+                unlockedProps.push(propertyData.id);
+                localStorage.setItem('unlockedProperties', JSON.stringify(unlockedProps));
             }
+            
+            if(typeof db !== 'undefined') {
+                // Update Leads Counter
+                db.collection("properties").doc(propertyData.id).update({
+                    leads: firebase.firestore.FieldValue.increment(1)
+                }).catch(e => console.log(e));
+
+                // Save Payment Record to Firestore
+                db.collection("payments").add({
+                    paymentId: paymentId,
+                    userId: currentUserId,
+                    propertyId: propertyData.id,
+                    amount: currentUnlockFee,
+                    planType: "Contact Unlock",
+                    status: "Success",
+                    createdAt: new Date().toISOString()
+                }).catch(e => console.log("Payment record save error", e));
+            }
+
+            alert("पेमेंट यशस्वी! (Payment ID: " + paymentId + ") नंबर अनलॉक झाला आहे.");
         }
 
         function unlockNumberUI() {
@@ -507,7 +563,7 @@
             document.getElementById('whatsappBtn').classList.add('unlocked');
         }
 
-        // ५. कॉल आणि WhatsApp अक्शन्स
+        // ६. कॉल आणि WhatsApp अक्शन्स
         function makeCall() {
             if(isUnlocked && propertyData && propertyData.ownerMobile) {
                 window.location.href = `tel:+91${propertyData.ownerMobile}`;
@@ -521,7 +577,7 @@
             }
         }
 
-        // ६. शेअर आणि फेव्हरेट (Wishlist)
+        // ७. शेअर आणि फेव्हरेट (Wishlist)
         function shareProperty() {
             if(propertyData) {
                 let shareUrl = window.location.href;
@@ -540,7 +596,6 @@
             btn.classList.toggle('active');
             if(btn.classList.contains('active')) {
                 btn.style.color = '#E74C3C';
-                // 🆕 Save Property
                 if(propertyData) {
                     let savedProps = JSON.parse(localStorage.getItem('userWishlist')) || [];
                     if(!savedProps.includes(propertyData.id)) {
@@ -551,7 +606,6 @@
                 alert("प्रॉपर्टी सेव्ह केली!");
             } else {
                 btn.style.color = 'var(--text-dark)';
-                // 🆕 Remove Property
                 if(propertyData) {
                     let savedProps = JSON.parse(localStorage.getItem('userWishlist')) || [];
                     savedProps = savedProps.filter(id => id !== propertyData.id);
